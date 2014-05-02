@@ -1,0 +1,227 @@
+This talk is intended for an audience with an intermediate level of
+familiarity with distributed systems, functional programming, and Clojure.
+
+ It has been developed over the past 6 months in response to difficult
+analytics problems against large data sets. This talk will cover key design 
+techniques, an illustration of the problem that led me to create Onyx, and a 
+live demo showing off a solution.
+
+
+~                                                                            
+~                                                                            
+~              
+\documentclass[11pt,a4paper]{article}
+\usepackage[nohead,a4paper,lmargin=1.5cm,rmargin=2.0cm,tmargin=2.0cm,bmargin=2.0cm]{geometry}
+
+\usepackage{verbatim}
+\usepackage{xspace}
+
+\newcommand{\CEU}{\textsc{C\'{e}u}\xspace}
+\newcommand{\code}[1] {{\small{\texttt{#1}}}}
+
+\title{
+    Imperative Reactive Programming with \CEU
+}
+%\author{Francisco Sant'Anna}
+
+\begin{document}
+
+\maketitle
+
+% wc = 19 19 394
+
+%\abstract{
+The origins of reactive programming date back to the early 80's with the 
+codevelopment of two styles of synchronous languages:
+%
+The imperative style of Esterel specifies programs with control flow 
+primitives, such as sequences, repetitions, and also parallelism.
+%
+The dataflow style of Lustre represents programs as graphs of values, in which 
+a change to a node updates its dependencies automatically.
+
+In recent years, Functional Reactive Programming modernized the dataflow style 
+an became mainstream, producing a number of languages and libraries, such as
+Flapjax, Rx (from Microsoft), React (from Facebook), and Elm.
+%
+In contrast, the imperative style did not follow this trend and is now confined 
+to the domain of real-time embedded control systems.
+% such as flight control on avionics and anti-collision equipment on automobiles.
+
+We present the programming language \CEU, a contemporary outlook of imperative 
+reactivity, aiming to expand the application domain of this family with a new 
+abstraction mechanism.
+%which supports a rich set of control abstractions and static safety 
+%guarantees.
+%
+\CEU has its roots on Esterel and relies on a similar synchronous and 
+deterministic execution model that simplifies the reasoning about concurrency 
+aspects.
+%
+%In particular, the disciplined stepwise synchronous execution of programs 
+%allows for concurrent lines to safely share variables.
+%
+The example below in \CEU prints the "Hello World!" message every second, 
+terminating with a key press:
+
+\begin{verbatim}
+    par/or do
+       every 1s do
+          print("Hello World!");
+       end
+    with
+       await KEY;
+    end
+\end{verbatim}
+
+A \code{par/or} composition spawns concurrent trails (\CEU's lightweight lines 
+of execution) that rejoin when any of them terminate (an analogous 
+\code{par/and} rejoins when all trails terminate).
+%
+The first trail continuously prints "Hello World!", while the second awaits for 
+a key press to terminate the whole composition.
+
+The \code{await} statement is the most representative of \CEU, capturing the 
+imperative and reactive nature of the language at the same time.
+%
+Awaiting multiple events in parallel compositions releases programmers from the 
+infamous \emph{callback hell}, which is often a concern in general purpose 
+imperative languages.
+
+%In order to XXX GP
+\CEU introduces a new class-based abstraction mechanism that includes an 
+execution body with reactive statements.
+%
+The example below defines a class "Hello" that prints a custom message every 
+second.
+In the program body, we declare two instances inside a \code{do-end} block that 
+limits their scope:
+% that goes out of scope after any key press:
+
+\begin{verbatim}
+    class Hello with
+       var int i;
+    do
+       every 1s do
+          print("I am %d!", this.i);
+       end
+    end
+
+    do
+       var Hello a with
+          i = 1;
+       end;
+       var Hello b with
+          i = 2;
+       end;
+       await KEY;
+    end
+\end{verbatim}
+
+When the program starts, each instance spawns its body in parallel with the 
+\code{do-end} block that will await the key press.
+%
+On user input, the instances go out of scope with the enclosing block and their 
+bodies are automatically terminated.
+%
+In \CEU, instances have lexical scope just like local primitive variables, 
+eliminating the overhead of a garbage collector.
+%
+An static analysis ensures that references to instances never leak to outer 
+scopes.
+
+Even though other languages support local instances (e.g. C++), the presence of 
+the \code{await} statement makes possible for blocks in \CEU to outlive 
+multiple external reactions while keeping locals alive.
+%
+Even dynamically allocated instances have lexical scope in \CEU, as illustrated 
+below:
+
+\begin{verbatim}
+    par/or do
+       do
+          every 1s do
+             spawn Hello with
+                i = _rand();
+             end;
+          end
+       end
+    with
+       await KEY;
+    end
+\end{verbatim}
+
+We now use the \code{spawn} primitive to create a new instance of \code{Hello} 
+every second.
+The dynamic instances are bound the enclosing \code{do-end} block.
+On user input, the whole \code{par/or} terminates, deallocating all instances 
+in the block.
+Note how allocated instances are conveniently anonymous, releasing the 
+programmer from managing their life cycles.
+
+To evaluate performance, we wrote a stress test program that spawns 10,000 
+animated graphical objects, each containing 3 trails (resulting in 30,000 
+coexisting trails).
+We compared it with a pure event-driven implementation in C and noticed an 
+acceptable decrease of 10-20\% in the frame rate for the implementation in 
+\CEU.
+
+We believe that the imperative reactive style of \CEU is a realistic 
+counterpart to Functional Reactive Programming and complements the realm of 
+synchronous programming.
+%
+The new abstraction mechanism of \CEU makes imperative reactivity suitable for 
+applications outside the embedded domain, expanding classical object 
+orientation with instances that are reactive to the environment.
+%
+As an example, we implemented in \CEU an Android game of moderate complexity 
+(approximately 5,000 lines of code).
+
+\begin{comment}
+programs close to specification
+
+adv: convenience of imperative w/o the burden
+also solves the callback hell
+- big gap for imperative reactivity
+
+React (vs FRP)
+http://www.debjitbiswas.com/genuinely-functional-user-interfaces-and-react/
+\end{comment}
+%}
+
+% Presentation Outline:
+%   - Reactive applications: characteristics, challenges
+%   - Reactive models: Declarative/Dataflow/FRP vs Control/Imperative
+%   - Overview of Céu
+%   - Reactive "Hello World!"
+%   - Reactive abstractions in Céu
+%   - Demos: ~10 incremental live demonstrations
+%
+% Previous StrangeLoops?
+%   - No, it would my first time.
+%
+% Speaking Experience:
+%   - Talks related to Céu (the topic of this proposal):
+%       - 2014 - Arduino Day - Presentation
+%                (http://thesynchronousblog.wordpress.com/2014/03/31/ceu-on-arduino-day/)
+%       - 2013 - SenSys Conference - Full Paper
+%                (http://sensys.acm.org/2013/index.html)
+%       - 2013 - REM Workshop (inside OOPSLA) - Full Paper
+%                (http://soft.vub.ac.be/REM13/)
+%       - 2011 - SenSys Conference - Doctoral Colloquium
+%                (http://www.cse.ust.hk/~lingu/SenSys11DC/)
+%   - I'm a CS teacher and we've been using Céu in Distributed System classes
+%
+% Bribes:
+%   -
+%
+%  170   541  6207 controllers.ceu
+%   20    51   518 fnts.ceu
+%  476  1765 18627 main.ceu
+%  575  1828 17676 objs.ceu
+%   33    94   918 points.ceu
+%   45   120  1351 snds.ceu
+%   94   254  2971 texs.ceu
+% 1413  4653 48268 total
+
+\end{document}
